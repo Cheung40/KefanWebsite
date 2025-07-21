@@ -234,7 +234,6 @@ export default function Navbar() {
               </Tooltip>
             </DockIcon>
             </>
-       
           )}
         </Dock>
       </TooltipProvider>
