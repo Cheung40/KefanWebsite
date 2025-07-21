@@ -1,0 +1,449 @@
+---
+title: "个人技术文章展示页面设计与实施步骤"
+excerpt: "根据你的需求，我将设计一个基于 Next.js 的个人技术文章展示系统，包含 Markdown 渲染、侧边目录导航和自定义 React UI 组件支持"
+date: "2025-07-15"
+tags: ["前端", "博客", "Next.js"]
+author: "Frank"
+image: "https://source.unsplash.com/random/600x400?blog"
+---
+
+### 个人技术文章展示页面设计与实施步骤
+
+根据你的需求，我将设计一个基于 Next.js 的个人技术文章展示系统，包含 Markdown 渲染、侧边目录导航和自定义 React UI 组件支持。
+
+### 技术栈选择
+
+- **框架**：Next.js 13（App Router）
+- **Markdown 处理**：`next-mdx-remote` + `remark/rehype` 插件
+- **UI 组件**：Tailwind CSS v3 + Font Awesome
+- **状态管理**：React Context API
+- **其他工具**：
+  - `gray-matter`：解析 Markdown 元数据
+  - `rehype-autolink-headings`：为标题添加锚点
+  - `rehype-highlight`：代码高亮
+
+### 目录结构设计
+
+```
+my-tech-blog/
+├── app/                  # Next.js 13 应用目录
+│   ├── blog/             # 博客页面
+│   │   ├── [slug]/       # 动态路由文章页面
+│   │   └── page.js       # 文章列表页
+│   ├── layout.js         # 全局布局
+│   └── page.js           # 首页
+├── components/           # 自定义组件
+│   ├── ui/               # UI 组件库
+│   ├── TOC.js            # 目录组件
+│   ├── MarkdownPost.js   # Markdown 渲染组件
+│   └── CodeBlock.js      # 代码块组件
+├── lib/                  # 工具库
+│   ├── mdx.js            # MDX 处理工具
+│   ├── posts.js          # 文章处理工具
+│   └── toc.js            # 目录生成工具
+├── public/               # 静态资源
+└── posts/                # Markdown 文章存放目录
+```
+
+### 实施步骤
+
+#### 1. 初始化项目
+
+```bash
+npx create-next-app@latest my-tech-blog --typescript --tailwind --eslint
+cd my-tech-blog
+npm install next-mdx-remote @mdx-js/react gray-matter remark-gfm rehype-highlight rehype-slug rehype-autolink-headings
+```
+
+#### 2. 配置 MDX 支持
+
+```javascript
+// next.config.js
+const withMDX = require('@next/mdx')({
+  extension: /\.mdx?$/,
+  options: {
+    remarkPlugins: [require('remark-gfm')],
+    rehypePlugins: [
+      require('rehype-slug'),
+      require('rehype-autolink-headings'),
+      require('rehype-highlight')
+    ]
+  }
+});
+
+module.exports = withMDX({
+  pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
+});
+```
+
+#### 3. 创建 Markdown 文章处理工具
+
+```javascript
+// lib/posts.ts
+import fs from 'fs';
+import path from 'path';
+import matter from 'gray-matter';
+import { serialize } from 'next-mdx-remote/serialize';
+
+const postsDirectory = path.join(process.cwd(), 'posts');
+
+export function getPostSlugs() {
+  return fs.readdirSync(postsDirectory);
+}
+
+export async function getPostBySlug(slug: string, fields: string[] = []) {
+  const realSlug = slug.replace(/\.mdx?$/, '');
+  const fullPath = path.join(postsDirectory, `${realSlug}.mdx`);
+  const fileContents = fs.readFileSync(fullPath, 'utf8');
+  
+  const { data, content } = matter(fileContents);
+  
+  const items: Record<string, any> = {};
+  
+  // 提取所需字段
+  fields.forEach((field) => {
+    if (field === 'slug') {
+      items[field] = realSlug;
+    }
+    if (field === 'content') {
+      items[field] = content;
+    }
+    if (data[field]) {
+      items[field] = data[field];
+    }
+  });
+  
+  // 序列化 MDX 内容
+  if (fields.includes('content')) {
+    items.content = await serialize(content);
+  }
+  
+  return items;
+}
+
+export async function getAllPosts(fields: string[] = []) {
+  const slugs = getPostSlugs();
+  const posts = await Promise.all(
+    slugs.map(async (slug) => await getPostBySlug(slug, fields))
+  );
+  return posts.sort((a, b) => (a.date > b.date ? -1 : 1));
+}
+```
+
+#### 4. 创建目录生成工具
+
+```javascript
+// lib/toc.ts
+import { visit } from 'unist-util-visit';
+
+export function extractHeadings(mdxContent: any) {
+  const headings: { level: number; title: string; id: string }[] = [];
+  
+  visit(mdxContent, 'heading', (node: any) => {
+    const text = node.children
+      .filter((child: any) => child.type === 'text' || child.type === 'inlineCode')
+      .map((child: any) => child.value)
+      .join('');
+      
+    const id = text.toLowerCase().replace(/[^\w]+/g, '-');
+    
+    headings.push({
+      level: node.depth,
+      title: text,
+      id
+    });
+  });
+  
+  return headings;
+}
+```
+
+#### 5. 创建目录组件
+
+```tsx
+// components/TOC.tsx
+'use client';
+
+import React, { useEffect, useState } from 'react';
+
+interface TOCElement {
+  level: number;
+  title: string;
+  id: string;
+}
+
+interface TOCProps {
+  headings: TOCElement[];
+}
+
+export default function TOC({ headings }: TOCProps) {
+  const [activeHeadingId, setActiveHeadingId] = useState('');
+  
+  useEffect(() => {
+    if (!headings.length) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveHeadingId(entry.target.id);
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+    
+    headings.forEach((heading) => {
+      const element = document.getElementById(heading.id);
+      if (element) observer.observe(element);
+    });
+    
+    return () => observer.disconnect();
+  }, [headings]);
+  
+  return (
+    <nav className="sticky top-6 h-[calc(100vh-3rem)] overflow-y-auto pr-4 pb-4">
+      <h3 className="font-bold text-gray-900 mb-3 text-lg">目录</h3>
+      <ul className="space-y-1 text-sm">
+        {headings.map((heading) => (
+          <li
+            key={heading.id}
+            className={`ml-${(heading.level - 2) * 4} ${
+              activeHeadingId === heading.id ? 'font-medium text-blue-600' : 'text-gray-600'
+            }`}
+          >
+            <a href={`#${heading.id}`} className="block py-1 hover:text-blue-600 transition-colors">
+              {heading.title}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+```
+
+#### 6. 创建文章详情页面
+
+```tsx
+// app/blog/[slug]/page.tsx
+import { getPostBySlug } from '@/lib/posts';
+import { extractHeadings } from '@/lib/toc';
+import { MDXRemote } from 'next-mdx-remote';
+import TOC from '@/components/TOC';
+import { components } from '@/components/ui/mdxComponents';
+
+export async function generateMetadata({ params }: { params: { slug: string } }) {
+  const post = await getPostBySlug(params.slug, ['title', 'description']);
+  return {
+    title: post.title,
+    description: post.description
+  };
+}
+
+export async function getStaticPaths() {
+  const posts = await getPostBySlug(['slug']);
+  return {
+    paths: posts.map((post) => ({ params: { slug: post.slug } })),
+    fallback: false
+  };
+}
+
+export async function getStaticProps(context: { params: { slug: string } }) {
+  const post = await getPostBySlug(context.params.slug, ['title', 'date', 'content', 'tags']);
+  const headings = extractHeadings(post.content);
+  
+  return {
+    props: { post, headings },
+    revalidate: 60 * 60 * 24 // 24小时重新验证
+  };
+}
+
+export default function PostPage({ post, headings }: { post: any; headings: any[] }) {
+  return (
+    <div className="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+      {/* 侧边栏：目录 */}
+      <div className="hidden lg:block">
+        <TOC headings={headings} />
+      </div>
+      
+      {/* 主内容区 */}
+      <main className="lg:col-span-3 space-y-6">
+        <article className="bg-white rounded-xl shadow-sm p-6 md:p-8">
+          <header className="mb-6">
+            <h1 className="text-3xl font-bold mb-2">{post.title}</h1>
+            <div className="flex items-center text-sm text-gray-500">
+              <span className="mr-4">
+                <i className="fa fa-calendar-o mr-1"></i> {post.date}
+              </span>
+              <span>
+                <i className="fa fa-tags mr-1"></i> {post.tags?.join(', ')}
+              </span>
+            </div>
+          </header>
+          
+          <div className="prose prose-lg max-w-none">
+            <MDXRemote {...post.content} components={components} />
+          </div>
+        </article>
+      </main>
+    </div>
+  );
+}
+```
+
+#### 7. 创建自定义 UI 组件支持
+
+```tsx
+// components/ui/Callout.tsx
+import React from 'react';
+
+interface CalloutProps {
+  type: 'info' | 'warning' | 'danger' | 'success';
+  children: React.ReactNode;
+}
+
+const ICONS = {
+  info: 'fa-info-circle',
+  warning: 'fa-exclamation-triangle',
+  danger: 'fa-exclamation-circle',
+  success: 'fa-check-circle'
+};
+
+const COLORS = {
+  info: 'bg-blue-50 border-blue-200 text-blue-800',
+  warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+  danger: 'bg-red-50 border-red-200 text-red-800',
+  success: 'bg-green-50 border-green-200 text-green-800'
+};
+
+export default function Callout({ type, children }: CalloutProps) {
+  return (
+    <div className={`border-l-4 ${COLORS[type]} p-4 rounded-r mb-4`}>
+      <div className="flex">
+        <div className="flex-shrink-0">
+          <i className={`fa ${ICONS[type]} text-xl`} aria-hidden="true"></i>
+        </div>
+        <div className="ml-3">{children}</div>
+      </div>
+    </div>
+  );
+}
+```
+
+#### 8. 配置 MDX 组件映射
+
+```tsx
+// components/ui/mdxComponents.tsx
+import React from 'react';
+import Callout from './Callout';
+import CodeBlock from './CodeBlock';
+
+export const components = {
+  // 自定义块级元素
+  callout: Callout,
+  
+  // 自定义内联元素
+  inlineCode: CodeBlock,
+  
+  // 覆盖默认元素
+  h1: ({ children }) => <h1 className="text-3xl font-bold mt-8 mb-4">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-2xl font-bold mt-8 mb-4">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-xl font-bold mt-6 mb-3">{children}</h3>,
+  p: ({ children }) => <p className="mb-4">{children}</p>,
+  ul: ({ children }) => <ul className="list-disc pl-5 mb-4">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 mb-4">{children}</ol>,
+  // 更多元素...
+};
+```
+
+#### 9. 在 Markdown 中使用自定义组件
+
+```mdx
+// posts/example-post.mdx
+---
+title: "Markdown 与 MDX 使用指南"
+date: "2023-06-15"
+tags: ["Markdown", "MDX", "React"]
+description: "学习如何在你的博客中使用 Markdown 和 MDX"
+---
+
+# Markdown 基础
+
+这是一段普通的 Markdown 文本。
+
+## 代码块
+
+```javascript
+function greet(name) {
+  return `Hello, ${name}!`;
+}
+```
+
+## 使用自定义组件
+
+<callout type="info">
+  这是一个信息提示框，使用了自定义的 Callout 组件。
+</callout>
+
+## 目录自动生成
+
+本文的目录会自动根据标题生成，并显示在文章侧边栏。
+```
+
+### 10. 样式配置与优化
+
+```css
+/* tailwind.config.js */
+module.exports = {
+  content: [
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#165DFF',
+        secondary: '#0FC6C2',
+        dark: '#1D2129',
+        light: '#F2F3F5'
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['Fira Code', 'monospace']
+      },
+      typography: {
+        DEFAULT: {
+          css: {
+            maxWidth: '65ch',
+            a: {
+              color: '#165DFF',
+              '&:hover': {
+                color: '#0E42B3'
+              }
+            },
+            code: {
+              backgroundColor: '#F2F3F5',
+              padding: '0.2em 0.4em',
+              borderRadius: '0.25rem'
+            }
+          }
+        }
+      }
+    }
+  },
+  plugins: [require('@tailwindcss/typography')]
+};
+```
+
+### 功能扩展建议
+
+1. **代码高亮优化**：使用 `prism-react-renderer` 替代 `rehype-highlight` 实现更美观的代码高亮
+2. **搜索功能**：添加文章搜索功能，使用 `lunr.js` 或 Algolia
+3. **评论系统**：集成 Disqus 或 GitHub Issues 作为评论系统
+4. **阅读进度条**：添加页面顶部的阅读进度指示器
+5. **深色模式**：实现基于系统设置的深色/浅色模式切换
+6. **数学公式支持**：使用 `remark-math` 和 `rehype-katex` 支持 LaTeX 数学公式
+
+通过以上步骤，你可以构建一个功能完善、美观的个人技术文章展示平台，支持 Markdown 渲染、侧边目录导航和自定义 React UI 组件。
