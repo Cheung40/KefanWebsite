@@ -149,7 +149,7 @@ export function TypingAnimation({
       {displayedText}
       {showCursor && started && (
         <motion.span
-          className="inline-block w-0.5 bg-current ml-1 align-text-top"
+          className="inline-block w-1 bg-current ml-1 align-text-top"
           style={{
             height: '1em',
             lineHeight: 'inherit'
