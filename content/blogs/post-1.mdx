@@ -14,6 +14,23 @@ author: "Frank"
 - **情感内核**：想引发读者何种共鸣？是对孤独的探讨（如《百年孤独》）、对救赎的渴望（如《肖申克的救赎》），还是对成长的思考（如《哈利·波特》）？
 - **独特视角**：用什么角度切入主题？比如同样写战争，《西线无战事》以士兵视角揭露残酷，《第二十二条军规》以荒诞手法讽刺体制。
 
+```js
+// 提取公共的博客文章解析逻辑
+function parseBlogPost(slug: string, fileContents: string) {
+  const { data, content } = matter(fileContents);
+  
+  return {
+    slug,
+    title: data.title,
+    excerpt: data.excerpt,
+    tags: data.tags || [],
+    date: data.date,
+    author: data.author || "未知",
+    image: data.image || "",
+    content,
+  };
+}
+```
 
 ### 二、**人物：故事的“载体”**
 人物是推动情节的核心，需避免扁平化为“工具人”。构思时可从三方面入手：

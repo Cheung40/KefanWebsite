@@ -1,4 +1,3 @@
-// lib/blog.ts
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
@@ -30,7 +29,6 @@ export function getAllPosts() {
     const slug = filename.replace(".mdx", "");
     const filePath = path.join(blogDirectory, filename);
     const fileContents = fs.readFileSync(filePath, "utf-8");
-    
     return parseBlogPost(slug, fileContents);
   });
 }
@@ -38,6 +36,5 @@ export function getAllPosts() {
 export function getPostBySlug(slug: string) {
   const filePath = path.join(blogDirectory, `${slug}.mdx`);
   const fileContents = fs.readFileSync(filePath, "utf-8");
-  
   return parseBlogPost(slug, fileContents);
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, forwardRef } from "react";
+import { useLayoutEffect, useState, forwardRef } from "react";
 import { SunIcon, MoonIcon } from "lucide-react";
 
 interface ModeToggleProps {
@@ -12,7 +12,7 @@ export const ModeToggle = forwardRef<HTMLButtonElement, ModeToggleProps>(
     const [isDark, setIsDark] = useState(false);
     const [mounted, setMounted] = useState(false);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
       setMounted(true);
       if (typeof window !== 'undefined') {
         const dark = localStorage.theme === "dark" ||
@@ -26,7 +26,10 @@ export const ModeToggle = forwardRef<HTMLButtonElement, ModeToggleProps>(
       if (typeof window !== 'undefined') {
         const newDark = !isDark;
         setIsDark(newDark);
-        document.documentElement.classList.toggle("dark", newDark);
+        // 用 requestAnimationFrame 保证状态先更新再切 class
+        window.requestAnimationFrame(() => {
+          document.documentElement.classList.toggle("dark", newDark);
+        });
         localStorage.theme = newDark ? "dark" : "light";
       }
     };

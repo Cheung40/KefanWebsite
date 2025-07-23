@@ -1,10 +1,13 @@
 "use client";
+import { DotPattern } from "@/components/magicui/dot-pattern";
 import { TypingAnimation } from "@/components/magicui/typing-animation";
 
 export default function Page() {
   return (
     <div className="page-container">
+      <DotPattern centerBlur={true} blurRadius={0.3} />
       <div className="text-center space-y-8">
+
         <TypingAnimation 
           className="page-title"
           duration={150}

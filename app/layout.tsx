@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { DotPattern } from "@/components/magicui/dot-pattern";
 import Navbar from "@/components/navbar";
 import { Noto_Sans_SC, Noto_Serif_SC } from "next/font/google";
 
@@ -40,8 +39,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} ${notoSansSC.variable} ${notoSerifSC.variable} antialiased`}>
         <div className="relative min-h-screen w-full">
-          <DotPattern centerBlur={true} blurRadius={0.3} />
-          <Navbar />
+          <Navbar/>
           {children}
         </div>
       </body>
