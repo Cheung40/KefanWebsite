@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export default function BlogCard({ post }: { post: any }) {
   return (
-    <Card className="relative z-10 transition-transform duration-300 hover:scale-105 hover:shadow-lg bg-white dark:bg-black">
+    <Card className="transition-transform duration-300 hover:scale-105 hover:shadow-lg">
       <CardHeader>
         <CardTitle>{post.title}</CardTitle>
       </CardHeader>
